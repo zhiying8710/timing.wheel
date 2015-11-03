@@ -39,11 +39,23 @@ public class RedisTimingWheelTest {
 
         }
         System.out.println("wheel running...");
-        int x = 1000;
-        for (int i = 0; i < x; i++) {
-            wheel.add(new AgeEntry(System.currentTimeMillis()));
-            TimeUnit.MILLISECONDS.sleep(RandomUtils.nextLong(200, 1000));
+        for (int i = 0; i < 100; i++) {
+            new Thread(new Runnable() {
+
+                @Override
+                public void run() {
+                    int x = 10000;
+                    for (int i = 0; i < x; i++) {
+                        wheel.add(new AgeEntry(i));
+                        try {
+                            TimeUnit.MILLISECONDS.sleep(RandomUtils.nextLong(200, 1000));
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }
+            }).start();
         }
+
 
         System.in.read();
     }

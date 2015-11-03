@@ -11,6 +11,7 @@ import me.binge.redis.exec.RedisExecutor;
 import me.binge.timing.wheel.Slot;
 import me.binge.timing.wheel.TimingWheel;
 import me.binge.timing.wheel.entry.Entry;
+import me.binge.timing.wheel.entry.JacksonEntryCodecer;
 import static me.binge.timing.wheel.utils.RedisConstant.*;
 
 public class RedisSlot<E extends Entry> extends Slot<E> {
@@ -21,7 +22,7 @@ public class RedisSlot<E extends Entry> extends Slot<E> {
     private String slotKey;
 
     private RedisExecutor<?> redisExecutor;
-    private RedisEntryCodecer<E> entryCodecer = new RedisEntryCodecer<E>();
+    private JacksonEntryCodecer<E> entryCodecer = new JacksonEntryCodecer<E>();
 
     public RedisSlot(long cycle, int id, RedisExecutor<?> redisExecutor) {
         super(cycle, id);

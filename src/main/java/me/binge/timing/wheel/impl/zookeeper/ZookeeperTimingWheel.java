@@ -20,6 +20,7 @@ public class ZookeeperTimingWheel<E extends Entry> extends TimingWheel<E> {
     public ZookeeperTimingWheel(int tickDuration, int ticksPerWheel,
             TimeUnit timeUnit, String wheelName,
             TickCondition tickCondition, ZkClient zkClient, Expiration<E>... expirations) {
+
         super(tickDuration, ticksPerWheel, timeUnit, wheelName,
                 tickCondition, expirations);
 
@@ -36,35 +37,30 @@ public class ZookeeperTimingWheel<E extends Entry> extends TimingWheel<E> {
 
     @Override
     public Slot<E> workSlot(long cycle, int id) {
-        // TODO Auto-generated method stub
-        return null;
+        return new ZookeeperSlot<E>(cycle, id, zkClient);
     }
 
 
     @Override
     protected long getCurrentCycle() {
-        // TODO Auto-generated method stub
         return 0;
     }
 
 
     @Override
     protected void incrCurrentCycle() {
-        // TODO Auto-generated method stub
 
     }
 
 
     @Override
     protected int getCurrentTickIndex() {
-        // TODO Auto-generated method stub
         return 0;
     }
 
 
     @Override
     protected int setCurrentTickIndex(int currentTickIndex) {
-        // TODO Auto-generated method stub
         return 0;
     }
 

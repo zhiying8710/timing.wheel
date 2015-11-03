@@ -9,24 +9,25 @@ import me.binge.timing.wheel.entry.Entry;
 
 public class ZookeeperIndicator<E extends Entry> implements Indicator<E> {
 
+    private ZkClient zkClient;
+    private Wheel<E> wheel;
+
     public ZookeeperIndicator(ZkClient zkClient, Wheel<E> wheel) {
+        this.zkClient = zkClient;
+        this.wheel = wheel;
     }
 
     @Override
     public void put(E e, Slot<E> slot) {
-        // TODO Auto-generated method stub
-
     }
 
     @Override
     public Slot<E> get(E e) {
-        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public void remove(E e) {
-        // TODO Auto-generated method stub
 
     }
 

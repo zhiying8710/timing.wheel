@@ -1,9 +1,6 @@
-package me.binge.timing.wheel.impl.redis;
+package me.binge.timing.wheel.entry;
 
 import java.util.Arrays;
-
-import me.binge.timing.wheel.entry.Entry;
-import me.binge.timing.wheel.entry.EntryCodecer;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -18,14 +15,14 @@ import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.jsontype.TypeResolverBuilder;
 
-public class RedisEntryCodecer<E extends Entry> implements EntryCodecer<E, String> {
+public class JacksonEntryCodecer<E extends Entry> implements EntryCodecer<E, String> {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private ObjectMapper mapObjectMapper = new ObjectMapper();
 
     private Class<?> entryClazz;
 
-    public RedisEntryCodecer() {
+    public JacksonEntryCodecer() {
         init(objectMapper);
         TypeResolverBuilder<?> typer = new DefaultTypeResolverBuilder(DefaultTyping.NON_FINAL);
         typer.init(JsonTypeInfo.Id.CLASS, null);
