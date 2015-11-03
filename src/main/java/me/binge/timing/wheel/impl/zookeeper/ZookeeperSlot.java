@@ -7,8 +7,8 @@ import me.binge.timing.wheel.entry.Entry;
 
 public class ZookeeperSlot<E extends Entry> extends Slot<E> {
 
-    protected ZookeeperSlot(int id) {
-        super(id);
+    protected ZookeeperSlot(long cycle, int id) {
+        super(cycle, id);
     }
 
     @Override

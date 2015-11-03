@@ -21,7 +21,7 @@ public class RedisIndicator<E extends Entry> implements Indicator<E> {
 
     @Override
     public void put(E e, Slot<E> slot) {
-        this.redisExecutor.hset(entriesSlotKey(), e.getKey(), slot.getId() + "");
+        this.redisExecutor.hset(entriesSlotKey(), e.getKey(), slot.getCycle() + "_" + slot.getId());
     }
 
     @Override
@@ -30,7 +30,7 @@ public class RedisIndicator<E extends Entry> implements Indicator<E> {
         if (StringUtils.isBlank(ssid)) {
             return null;
         }
-        return wheel.get(Integer.valueOf(ssid));
+        return wheel.get(e.getCycle(), e.getSlotId());
     }
 
     @Override

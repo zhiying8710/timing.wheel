@@ -11,8 +11,8 @@ public class MemSlot<E extends Entry> extends Slot<E> {
 
     private Map<E, E> elements = new ConcurrentHashMap<E, E>();
 
-    protected MemSlot(int id) {
-        super(id);
+    protected MemSlot(long cycle, int id) {
+        super(cycle, id);
     }
 
     @Override

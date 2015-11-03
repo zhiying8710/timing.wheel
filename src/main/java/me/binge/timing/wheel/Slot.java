@@ -5,9 +5,11 @@ import java.util.Set;
 import me.binge.timing.wheel.entry.Entry;
 
 public abstract class Slot<E extends Entry> {
+    protected long cycle;
     protected int id;
 
-    protected Slot(int id) {
+    protected Slot(long cycle, int id) {
+        this.cycle = cycle;
         this.id = id;
     }
 
@@ -21,10 +23,15 @@ public abstract class Slot<E extends Entry> {
         return id;
     }
 
+    public long getCycle() {
+        return cycle;
+    }
+
     @Override
     public int hashCode() {
         final int prime = 31;
         int result = 1;
+        result = prime * result + (int) (cycle ^ (cycle >>> 32));
         result = prime * result + id;
         return result;
     }
@@ -39,8 +46,16 @@ public abstract class Slot<E extends Entry> {
             return false;
         @SuppressWarnings("unchecked")
         Slot<E> other = (Slot<E>) obj;
+        if (cycle != other.cycle)
+            return false;
         if (id != other.id)
             return false;
         return true;
     }
+
+    @Override
+    public String toString() {
+        return "Slot [cycle=" + cycle + ", id=" + id + "]";
+    }
+
 }

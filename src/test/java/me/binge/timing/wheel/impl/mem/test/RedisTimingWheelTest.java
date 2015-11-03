@@ -4,6 +4,8 @@ import java.io.InputStream;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.RandomUtils;
+
 import me.binge.redis.exec.RedisExecutor;
 import me.binge.redis.exec.RedisExecutors;
 import me.binge.timing.wheel.TimingWheel;
@@ -23,31 +25,24 @@ public class RedisTimingWheelTest {
 
         RedisExecutor<?> redisExecutor = RedisExecutors.get(props);
 
-        final TimingWheel<AgeEntry> wheel = new RedisTimingWheel<AgeEntry>(100, 100, TimeUnit.MILLISECONDS, "xxx", new Expiration<AgeEntry>() {
+        final TimingWheel<AgeEntry> wheel = new RedisTimingWheel<AgeEntry>(100, 100, TimeUnit.MILLISECONDS, "xxx", redisExecutor, null, new Expiration<AgeEntry>() {
 
             @Override
             public void expired(AgeEntry entry) {
-                System.out.println(entry.getKey() + "::" + (System.currentTimeMillis() - entry.getAge()));
+                System.out.println(entry + "::" + (System.currentTimeMillis() - entry.getTime()));
             }
-        }, redisExecutor, null);
+        });
 
-
-        new Thread(new Runnable() {
-
-            @Override
-            public void run() {
-                wheel.start();
-            }
-        }).start();
+        wheel.start();
 
         while (!wheel.running()) {
 
         }
         System.out.println("wheel running...");
-        int x = 100;
+        int x = 1000;
         for (int i = 0; i < x; i++) {
             wheel.add(new AgeEntry(System.currentTimeMillis()));
-            TimeUnit.SECONDS.sleep(1);
+            TimeUnit.MILLISECONDS.sleep(RandomUtils.nextLong(200, 1000));
         }
 
         System.in.read();

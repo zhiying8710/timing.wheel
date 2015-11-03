@@ -1,6 +1,7 @@
 package me.binge.timing.wheel;
 
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -8,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import me.binge.timing.wheel.Wheel.SlotGenerator;
 import me.binge.timing.wheel.entry.Entry;
 import me.binge.timing.wheel.expire.Expiration;
 import me.binge.timing.wheel.expire.ExpirationWorker;
@@ -60,7 +62,7 @@ public abstract class TimingWheel<E extends Entry> {
     protected final long tickDuration;
     protected final int ticksPerWheel;
 
-    protected final Expiration<E> expiration;
+    protected final Expiration<E>[] expirations;
 
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
     protected final ReadWriteLock lock = new ReentrantReadWriteLock();
@@ -74,7 +76,6 @@ public abstract class TimingWheel<E extends Entry> {
 
     private volatile boolean running = false;
 
-
     // ~ -------------------------------------------------------------------------------------------------------------
 
     public long getTickDuration() {
@@ -83,7 +84,7 @@ public abstract class TimingWheel<E extends Entry> {
 
     public abstract Indicator<E> getIndicator();
 
-    public abstract Slot<E> workSlot(int id);
+    public abstract Slot<E> workSlot(long cycle, int id);
 
     /**
      * Construct a timing wheel.
@@ -94,7 +95,8 @@ public abstract class TimingWheel<E extends Entry> {
      * @param timeUnit
      * @param wheelName a name for this wheel instance
      */
-    public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit, String wheelName, Expiration<E> expiration, TickCondition tickCondition) {
+    @SafeVarargs
+    public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit, String wheelName, TickCondition tickCondition, Expiration<E>... expirations) {
         if (timeUnit == null) {
             throw new NullPointerException("unit");
         }
@@ -108,29 +110,35 @@ public abstract class TimingWheel<E extends Entry> {
         this.tickDuration = TimeUnit.MILLISECONDS.convert(tickDuration, timeUnit);
         this.ticksPerWheel = ticksPerWheel + 1;
 
-        this.expiration = expiration;
+        this.expirations = expirations;
         this.tickCondition = tickCondition;
         if (wheelName == null) {
             wheelName = "Timing-Wheel";
         }
 
         this.wheelName = wheelName;
-        this.wheel = new Wheel<E>();
+        this.wheel = new Wheel<E>(new SlotGenerator<E>() {
 
+            @Override
+            public Slot<E> gene(long cycle, int id) {
+                return workSlot(cycle, id);
+            }
+        });
         workerThread = new Thread(new TickWorker(), this.wheelName);
         ShutdownHookUtils.hook(EXPIRATION_EXECUTOR, true);
     }
 
-    public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit, Expiration<E> expiration, TickCondition notifyExpireCondition) {
-        this(tickDuration, ticksPerWheel, timeUnit, null, expiration, notifyExpireCondition);
+    @SafeVarargs
+    public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit, TickCondition notifyExpireCondition, Expiration<E>... expirations) {
+        this(tickDuration, ticksPerWheel, timeUnit, null, notifyExpireCondition, expirations);
     }
 
     public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit, TickCondition notifyExpireCondition) {
-        this(tickDuration, ticksPerWheel, timeUnit, null, null, notifyExpireCondition);
+        this(tickDuration, ticksPerWheel, timeUnit, null, notifyExpireCondition);
     }
 
     public TimingWheel(int tickDuration, int ticksPerWheel, TimeUnit timeUnit) {
-        this(tickDuration, ticksPerWheel, timeUnit, null, null, null);
+        this(tickDuration, ticksPerWheel, timeUnit, null);
     }
 
 
@@ -142,7 +150,7 @@ public abstract class TimingWheel<E extends Entry> {
         }
 
         for (int i = 0; i < this.ticksPerWheel; i++) {
-            wheel.put(workSlot(i));
+            wheel.put(workSlot(getCurrentCycle(), i));
         }
 
         if (!workerThread.isAlive()) {
@@ -182,15 +190,13 @@ public abstract class TimingWheel<E extends Entry> {
      * Add a element to {@link TimingWheel} and start to count down its life-time.
      *
      * @param e
-     * @param a appoint listener, when e is expired, a thread will be start, appointExpirationListener.expired(e) will be invoked.
      * @return remain time to be expired in millisecond.
      */
     public long add(E e) {
         synchronized(e) {
             checkAdd(e);
-            int previousTickIndex = getPreviousTickIndex();
-            Slot<E> slot = this.wheel.get(previousTickIndex);
-            e.setTime(System.currentTimeMillis());
+            Slot<E> slot = this.wheel.get(getCurrentCycle(), getPreviousTickIndex());
+            e.init(slot.getCycle(), slot.getId());
             slot.add(e);
             getIndicator().put(e, slot);
             return (ticksPerWheel - 1) * tickDuration;
@@ -210,7 +216,9 @@ public abstract class TimingWheel<E extends Entry> {
     }
 
     protected abstract int getCurrentTickIndex();
-    protected abstract void setCurrentTickIndex(int currentTickIndex);
+    protected abstract int setCurrentTickIndex(int currentTickIndex);
+    protected abstract long getCurrentCycle();
+    protected abstract void incrCurrentCycle();
 
     protected int getPreviousTickIndex() {
         lock.readLock().lock();
@@ -245,21 +253,45 @@ public abstract class TimingWheel<E extends Entry> {
         }
     }
 
-    private void notifyExpired(int idx) {
-        Slot<E> slot = this.wheel.get(idx);
-        Set<E> elements = slot.elements();
-        for (E e : elements) {
+    public static class ElementExpireHandler<E extends Entry> implements Callable<E> {
+
+        private Indicator<E> indicator;
+        private Slot<E> slot;
+        private E e;
+
+        public ElementExpireHandler(Indicator<E> indicator, Slot<E> slot, E e) {
+            this.indicator = indicator;
+            this.slot = slot;
+            this.e = e;
+        }
+
+        @Override
+        public E call() throws Exception {
             slot.remove(e);
             synchronized (e) {
-                Slot<E> latestSlot = getIndicator().get(e);
+                Slot<E> latestSlot = indicator.get(e);
                 if (latestSlot.equals(slot)) {
-                    getIndicator().remove(e);
+                    indicator.remove(e);
                 }
             }
-            if (expiration != null) {
-                EXPIRATION_EXECUTOR.submit(new ExpirationWorker<E>(expiration, e));
-            }
+            return e;
         }
+
+    }
+
+    private void notifyExpired(long cycle, int idx) {
+        for (long i = cycle; i > -1; i--) {
+            Slot<E> slot = wheel.get(i, idx);
+            if (slot == null) {
+                break;
+            }
+            Set<E> elements = slot.elements();
+            for (E e : elements) {
+                EXPIRATION_EXECUTOR.submit(new ExpirationWorker<E>(new ElementExpireHandler<E>(getIndicator(), slot, e), e, expirations));
+            }
+            wheel.clear(i, idx);
+        }
+
     }
 
     // ~ -------------------------------------------------------------------------------------------------------------
@@ -271,38 +303,36 @@ public abstract class TimingWheel<E extends Entry> {
 
         @Override
         public void run() {
-            if (tickCondition != null) {
-                tickCondition.tick();
-            }
             startTime = System.currentTimeMillis();
             tick = 1;
-
-            for (int i = 0; !shutdown.get(); i++) {
-                if (i == wheel.size()) {
-                    i = 0;
+            for (; !shutdown.get();) {
+                int currentTickIndex = getCurrentTickIndex();
+                long currentCycle = getCurrentCycle();
+                notifyExpired(currentCycle, currentTickIndex);
+                if (tickCondition == null || tickCondition.tick()) {
+                    try {
+                        int newCurrentTickIdx = setCurrentTickIndex(currentTickIndex + 1);
+                        if (newCurrentTickIdx == 0) {
+                            incrCurrentCycle();
+                        }
+                    } catch (Exception e) { // if occur a exception, release tick condition and retry.
+                        log.error("set current tick idx and incr current cycle error: " + e.getMessage(), e);
+                        if (tickCondition != null) {
+                            tickCondition.untick();
+                        }
+                        continue;
+                    }
                 }
-                lock.writeLock().lock();
-                int currentTickIndex = 0;
-                try {
-                    currentTickIndex  = i;
-                    setCurrentTickIndex(currentTickIndex);
-                } finally {
-                    lock.writeLock().unlock();
-                }
-                notifyExpired(currentTickIndex);
                 waitForNextTick();
             }
         }
 
         private void waitForNextTick() {
             for (;;) {
-                long currentTime = System.currentTimeMillis();
-                long sleepTime = tickDuration * tick - (currentTime - startTime);
-
+                long sleepTime = tickDuration * tick - (System.currentTimeMillis() - startTime);
                 if (sleepTime <= 0) {
                     break;
                 }
-
                 try {
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {

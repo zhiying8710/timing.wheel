@@ -26,6 +26,9 @@ public class AgeEntry extends Entry {
 
     @Override
     public String toString() {
-        return "AgeEntry [age=" + age + ", key=" + key + "]";
+        return "AgeEntry [age=" + age + ", key=" + key + ", time=" + time
+                + ", cycle=" + cycle + ", slotId=" + slotId + "]";
     }
+
+
 }

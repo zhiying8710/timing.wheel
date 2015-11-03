@@ -4,8 +4,16 @@ public abstract class Entry {
 
     protected String key;
     protected long time;
+    protected long cycle;
+    protected int slotId;
 
     public Entry() {
+    }
+
+    public void init(long cycle, int slotId) {
+        this.cycle = cycle;
+        this.time = System.currentTimeMillis();
+        this.slotId = slotId;
     }
 
     public Entry(String key) {
@@ -26,6 +34,22 @@ public abstract class Entry {
 
     public void setTime(long time) {
         this.time = time;
+    }
+
+    public int getSlotId() {
+        return slotId;
+    }
+
+    public void setSlotId(int slotId) {
+        this.slotId = slotId;
+    }
+
+    public long getCycle() {
+        return cycle;
+    }
+
+    public void setCycle(long cycle) {
+        this.cycle = cycle;
     }
 
     @Override

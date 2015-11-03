@@ -16,7 +16,7 @@ public class MemTimingWheelTest {
             public void expired(AgeEntry entry) {
                 System.out.println(entry.getKey() + "::" + (System.currentTimeMillis() - entry.getAge()));
             }
-        }, null);
+        });
 
 
         new Thread(new Runnable() {

@@ -39,5 +39,9 @@ public class RedisConstant {
         return check() + "timingwheel_entries_slot";
     }
 
+    public static String currCycleKey() {
+        return check() + "timingwheel_current_cycle";
+    }
+
 
 }

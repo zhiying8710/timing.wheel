@@ -1,7 +1,6 @@
 package me.binge.timing.wheel.tick;
 
 import java.util.List;
-import java.util.concurrent.Semaphore;
 
 import me.binge.timing.wheel.utils.ZookeeperConstant;
 
@@ -13,34 +12,14 @@ public class ZookeeprTickCondition implements TickCondition {
 
     private ZkClient zkClient;
     private String workPath;
-    private static final Semaphore tickSemaphore = new Semaphore(1);
+    private volatile boolean occupy = false;
 
     public ZookeeprTickCondition(String workPath, ZkClient zkClient) {
         this.zkClient = zkClient;
-        this.workPath = workPath;
-    }
+        this.workPath = ZookeeperConstant.ROOT + "/" + workPath;
 
-    protected void tryOccupy(String path) {
-        try {
-            zkClient.createEphemeral(path + "/" + ZookeeperConstant.TICK_OCCUPY_NODE_NAME);
-        } catch (ZkNodeExistsException zknee) {
-            return;
-        } catch (Exception e) {
-            return;
-        }
-        tickSemaphore.release();
-    }
-
-    @Override
-    public boolean tick() {
-        try {
-            tickSemaphore.acquire();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        final String path = ZookeeperConstant.ROOT + "/" + workPath;
-        zkClient.createPersistent(path, true);
-        zkClient.subscribeChildChanges(path, new IZkChildListener() {
+        zkClient.createPersistent(this.workPath, true);
+        zkClient.subscribeChildChanges(this.workPath, new IZkChildListener() {
 
             @Override
             public void handleChildChange(String parentPath, List<String> currentChilds)
@@ -48,18 +27,34 @@ public class ZookeeprTickCondition implements TickCondition {
                 if (currentChilds != null && !currentChilds.isEmpty()) {
                     return;
                 }
-                tryOccupy(path);
+                tryOccupy();
             }
         });
-        tryOccupy(path);
+    }
 
-        try {
-            tickSemaphore.acquire();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+    protected boolean tryOccupy() {
+        if (occupy) {
+            return true;
         }
-
+        try {
+            zkClient.createEphemeral(workPath + "/" + ZookeeperConstant.TICK_OCCUPY_NODE_NAME);
+        } catch (ZkNodeExistsException zknee) {
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+        occupy = true;
         return true;
+    }
+
+    @Override
+    public boolean tick() {
+        return tryOccupy();
+    }
+
+    @Override
+    public void untick() {
+        this.occupy = false;
     }
 
 }

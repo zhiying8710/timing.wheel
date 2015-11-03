@@ -7,7 +7,6 @@ import me.binge.timing.wheel.Slot;
 import me.binge.timing.wheel.TimingWheel;
 import me.binge.timing.wheel.entry.Entry;
 import me.binge.timing.wheel.expire.Expiration;
-import me.binge.timing.wheel.tick.TickCondition;
 
 public class MemTimingWheel<E extends Entry> extends TimingWheel<E> {
 
@@ -15,12 +14,13 @@ public class MemTimingWheel<E extends Entry> extends TimingWheel<E> {
 
     private volatile int currentTickIndex = 0;
 
-    public MemTimingWheel(int tickDuration, int ticksPerWheel,
-            TimeUnit timeUnit, String wheelName, Expiration<E> expiration,
-            TickCondition notifyExpireCondition) {
+    private volatile int currentCycle = 0;
 
-        super(tickDuration, ticksPerWheel, timeUnit, wheelName, expiration,
-                notifyExpireCondition);
+    @SafeVarargs
+    public MemTimingWheel(int tickDuration, int ticksPerWheel,
+            TimeUnit timeUnit, String wheelName, Expiration<E>... expirations) {
+
+        super(tickDuration, ticksPerWheel, timeUnit, wheelName, null, expirations);
 
         this.indicator = new MemIndicator<E>();
     }
@@ -31,8 +31,8 @@ public class MemTimingWheel<E extends Entry> extends TimingWheel<E> {
     }
 
     @Override
-    public Slot<E> workSlot(int id) {
-        return new MemSlot<E>(id);
+    public Slot<E> workSlot(long cycle, int id) {
+        return new MemSlot<E>(cycle, id);
     }
 
     @Override
@@ -41,8 +41,22 @@ public class MemTimingWheel<E extends Entry> extends TimingWheel<E> {
     }
 
     @Override
-    protected void setCurrentTickIndex(int currentTickIndex) {
+    protected int setCurrentTickIndex(int currentTickIndex) {
+        if (currentTickIndex == this.ticksPerWheel) {
+            currentTickIndex = 0;
+        }
         this.currentTickIndex = currentTickIndex;
+        return this.currentTickIndex;
+    }
+
+    @Override
+    protected long getCurrentCycle() {
+        return currentCycle;
+    }
+
+    @Override
+    protected void incrCurrentCycle() {
+        currentCycle ++;
     }
 
 }
